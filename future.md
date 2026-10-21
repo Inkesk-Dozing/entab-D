@@ -1,28 +1,27 @@
-# Project Tracker: Bugs and Roadmap
+# Entab-D Project Tracker & Historical Issues
 
-This document outlines current known issues and planned future enhancements.
-
-## 🐞 Current Bugs
-
-### 1. Tabs Not Ungrouping on Rule Update
-* **Issue:** When a group's rules are changed, tabs already in that group are not re-evaluated.
-* **Result:** Tabs that no longer match the *new* rules remain in the group incorrectly.
-    * **Example:** If a group's rule is changed from `url contains "google.com"` to `url contains "bing.com"`, any existing "google.com" tabs are not automatically removed.
-
-### 2. Extension Toggle Ignores Existing Tabs
-* **Issue:** When the extension is enabled, it does not scan or group tabs that are already open.
-* **Result:** The grouping logic only applies to *newly* created tabs, forcing users to manually organize their existing session.
+> [!NOTE]
+> This tracker has been elevated to the formal documentation architecture in [`/docs`](docs/).
+> For the comprehensive roadmap and detailed issue specifications, see:
+> - **Strategic Roadmap**: [`docs/roadmap.md`](docs/roadmap.md)
+> - **Production Issue Specifications**: [`docs/issues/`](docs/issues/)
 
 ---
 
-## 🚀 Future Enhancements (Roadmap)
+## Historical Issues Index
 
-### 1. Cross-Window Group Consolidation
-* **Goal:** Prevent duplicate groups across multiple browser windows.
-* **Concept:** Instead of creating isolated groups in each window (e.g., a "Work" group in Window 1 and another in Window 2), the extension should scan *all* windows and consolidate matching tabs into a *single* group in *one* window.
-* **Challenge:** Requires a clear strategy for choosing the "target" window and moving tabs without disrupting the user's workflow.
+### 1. Tabs Not Ungrouping on Rule Update
+* **Status**: Tracked in [`docs/issues/003-fix-dynamic-tab-reevaluation-on-rule-updates.md`](docs/issues/003-fix-dynamic-tab-reevaluation-on-rule-updates.md)
+* **Description**: When a group's rules are changed, tabs already in that group are not re-evaluated.
 
-### 2. Rule Conflict Indicator
-* **Goal:** Notify users when their rules overlap.
-* **Concept:** Implement a UI indicator (e.g., a tooltip or icon) when a single tab matches the criteria for *multiple* different groups.
-* **Result:** This helps users debug their own rule sets and understand why a tab might be grouped in an unexpected way, leading to more predictable behavior.
+### 2. Extension Toggle Ignores Existing Tabs
+* **Status**: Tracked in [`docs/issues/002-fix-service-worker-lifecycle-and-state-persistence.md`](docs/issues/002-fix-service-worker-lifecycle-and-state-persistence.md)
+* **Description**: When the extension is enabled, it does not scan or group tabs that are already open.
+
+### 3. Cross-Window Group Consolidation
+* **Status**: Tracked in [`docs/issues/005-feat-cross-window-tab-group-consolidation.md`](docs/issues/005-feat-cross-window-tab-group-consolidation.md)
+* **Description**: Consolidating matching groups across multiple browser windows into a single window.
+
+### 4. Rule Conflict Indicator
+* **Status**: Tracked in [`docs/issues/006-feat-rule-conflict-detection-and-priority-resolution.md`](docs/issues/006-feat-rule-conflict-detection-and-priority-resolution.md)
+* **Description**: Notifying users when rule keywords overlap and resolving evaluation precedence.

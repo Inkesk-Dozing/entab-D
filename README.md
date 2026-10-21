@@ -1,112 +1,162 @@
-# Entab-D
-An Search Engine specifically Chrome for now Extention that helps in Sorting of tabs.
-
-
 # Entab-D 🚀
 
-A simple Chrome extension to help you instantly sort your messy browser tabs and find what you need.
+[![License](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](LICENSE)
+[![Manifest](https://img.shields.io/badge/Manifest-V3-success.svg)](manifest.json)
+[![Chrome](https://img.shields.io/badge/Platform-Google_Chrome-orange.svg)](https://www.google.com/chrome/)
+[![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](CONTRIBUTING.md)
+
+**Entab-D** is an intelligent, privacy-first Chrome extension (Manifest V3) designed to declutter browser sessions through automated rule grouping, smart deduplication, on-device Chrome Built-in AI classification, and spatial workspace knowledge mapping. Built with zero third-party telemetry.
 
 ---
 
-## 1. The Problem (Business Understanding)
+## Architecture Overview
 
-> We've all been there. Dozens of tabs open. You're researching, working, or shopping, and your browser becomes a cluttered mess. It's impossible to find anything, and productivity grinds to a halt.
+```mermaid
+graph LR
+    subgraph UI Surfaces
+        Popup[Popup HUD]
+        Options[Options Dashboard]
+        GraphCanvas[Spatial Tab Graph Canvas]
+    end
 
-**The goal of this project** is to fix that "tab clutter" with a one-click solution that organizes your open tabs.
+    subgraph Service Worker [Manifest V3 Background]
+        Router[Message Router]
+        Grouper[Grouping Engine]
+        Dedupe[Deduplication Cleaner]
+        Predictor[Markov Transition Predictor]
+        IntentTracker[Behavioral Intent Model]
+    end
 
-## 2. The Data (Data Understanding)
+    subgraph AI Acceleration Layer [On-Device]
+        GeminiNano[Chrome Built-in AI / Prompt API]
+        WebGPU[WebGPU Transformers.js Offscreen Document]
+    end
 
-The "data" for this extension is your live browser state, which we access using the Chrome Extensions API.
+    subgraph Chrome Native APIs
+        Tabs[chrome.tabs API]
+        TabGroups[chrome.tabGroups API]
+        Storage[chrome.storage API]
+    end
 
-* **Source:** `chrome.tabs` API.
-* **Key Data Structure:** The `chrome.tabs.Tab` object.
-* **Important Properties:**
-    * `id` (number): The tab's unique ID.
-    * `windowId` (number): The window the tab lives in.
-    * `title` (string): The text you see on the tab.
-    * `url` (string): The web address.
-    * `index` (number): The tab's current position.
+    Popup --> Router
+    Options --> Router
+    GraphCanvas --> Router
+    Router --> Grouper
+    Router --> Dedupe
+    Router --> Predictor
+    Router --> IntentTracker
 
-## 3. Getting Data Ready (Data Preparation)
-
-Before we can sort, we need to grab and clean the data.
-
-1.  **Retrieve:** We use `chrome.tabs.query()` to get an `Array` of all open `Tab` objects.
-2.  **Filter:** The user might only want to sort the *current* window. We filter the list based on the `windowId`.
-3.  **Transform:** To sort by website, we parse the `url` (e.g., "docs.google.com/spreadsheets/...") to get the root domain ("google.com"). This domain becomes our sorting key.
-
-## 4. The Sorting Logic (Modeling)
-
-This is the "magic" of the extension. The core logic lives in `service_worker.js`.
-
-1.  A user clicks the "Sort" button in the popup (`popup.html`).
-2.  `popup.js` sends a message to the `service_worker.js`.
-3.  The service worker gets the list of tabs (from Step 3).
-4.  It runs a JavaScript `.sort()` function on the array, grouping them based on the domain (or other criteria).
-5.  Finally, it iterates through the newly sorted list and physically moves the tabs in your browser using `chrome.tabs.move()` and `chrome.tabs.group()`.
-
----
-
-## 5. Setup & Usage (Deployment)
-
-This is deployed as an "unpacked" Chrome extension.
-
-### 🛠️ Setup Guide
-
-1.  **Download:** Clone or download this repository as a ZIP and unzip it to a folder you'll remember.
-2.  **Open Extensions:** In Chrome, go to `chrome://extensions`.
-3.  **Enable Developer Mode:** Find the **Developer mode** toggle in the top-right corner and switch it **ON**.
-4.  **Load the Extension:** Click the **Load unpacked** button that appears.
-5.  **Select Folder:** In the file dialog, select the `Entab-D` folder you created in step 1.
-
-The Entab-D icon will now appear in your Chrome toolbar!
-
-### 🖱️ Usage
-
-1.  Click the **Entab-D icon** in your toolbar.
-2.  Click the "Sort Tabs" button.
-3.  Watch your tabs organize themselves.
+    Grouper -.->|Zero-shot categorization| GeminiNano
+    Grouper -.->|Semantic embeddings| WebGPU
+    Grouper --> TabGroups
+    Grouper --> Tabs
+    Dedupe --> Tabs
+```
 
 ---
 
-## 6. Key Files & Tech
+## Core Capabilities
 
-* `manifest.json`: The extension's "brain." It tells Chrome what files to use, what permissions it needs (like `tabs`, `storage`, `tabGroups`), and where the popup is.
-* `service_worker.js`: The background script that does all the heavy lifting (querying, sorting, and moving tabs).
-* `popup.html` / `popup.js` / `popup.css`: The small window that appears when you click the extension icon.
-* `options.html` / `options.js`: The (optional) settings page for the extension.
-
-**Main Data Types Used:**
-* **`Object`**: For the `chrome.tabs.Tab` data.
-* **`Array`**: To hold the list of all tabs: `[Tab, Tab, Tab, ...]`.
-* **`String`**: For URLs and titles.
-* **`Integer`**: For tab and window IDs.
-
-# Project Tracker: Bugs and Roadmap
-
-This document outlines current known issues and planned future enhancements.
-
-## 🐞 Current Bugs
-
-### 1. Tabs Not Ungrouping on Rule Update
-* **Issue:** When a group's rules are changed, tabs already in that group are not re-evaluated.
-* **Result:** Tabs that no longer match the *new* rules remain in the group incorrectly.
-    * **Example:** If a group's rule is changed from `url contains "google.com"` to `url contains "bing.com"`, any existing "google.com" tabs are not automatically removed.
-
-### 2. Extension Toggle Ignores Existing Tabs
-* **Issue:** When the extension is enabled, it does not scan or group tabs that are already open.
-* **Result:** The grouping logic only applies to *newly* created tabs, forcing users to manually organize their existing session.
+- **Deterministic & AI Hybrid Tab Grouping**: Groups tabs via user keyword rules or autonomously via Chrome Built-in AI (Gemini Nano) and WebGPU dense vector embeddings.
+- **Smart & Semantic Deduplication**: Eliminates identical URLs (stripping tracking parameters) and identifies cross-URL semantic duplicates.
+- **User Intent & Workflow Recognition**: Detects cognitive browsing modes (*Debugging*, *Deep Research*, *Reading*) and tunes tab switching recommendations.
+- **Spatial Tab Knowledge Graph**: Interactive 2D visual canvas showing how tabs spawn, link, and relate semantically.
+- **Multi-Tab Research Synthesizer**: Map-reduce summarizer transforming 10+ research tabs into an actionable Markdown briefing.
+- **Tab Discarding & Memory Saver**: Automatically hibernates inactive or collapsed tab groups to reclaim workstation RAM.
 
 ---
 
-## 🚀 Future Enhancements (Roadmap)
+## Quick Start
 
-### 1. Cross-Window Group Consolidation
-* **Goal:** Prevent duplicate groups across multiple browser windows.
-* **Concept:** Instead of creating isolated groups in each window (e.g., a "Work" group in Window 1 and another in Window 2), the extension should scan *all* windows and consolidate matching tabs into a *single* group in *one* window.
-* **Challenge:** Requires a clear strategy for choosing the "target" window and moving tabs without disrupting the user's workflow.
+### Installation (Unpacked Developer Mode)
 
-### 2. Rule Conflict Indicator
-* **Goal:** Notify users when their rules overlap.
-* **Concept:** Implement a UI indicator (e.g., a tooltip or icon) when a single tab matches the criteria for *multiple* different groups.
-* **Result:** This helps users debug their own rule sets and understand why a tab might be grouped in an unexpected way, leading to more predictable behavior.
+1. Clone this repository:
+   ```bash
+   git clone https://github.com/Inkesk-Dozing/entab-D.git
+   cd entab-D
+   ```
+2. Open Google Chrome and navigate to `chrome://extensions`.
+3. Enable **Developer mode** using the toggle switch in the top-right corner.
+4. Click **Load unpacked** and select the repository directory.
+5. Pin **Entab-D** to your toolbar for immediate access.
+
+### (Optional) Local Python Sync Daemon
+
+If you wish to run the local backup server:
+```bash
+cd python
+pip install -r requirements.txt
+python app.py
+```
+
+---
+
+## Documentation Architecture
+
+Technical specifications and architectural plans are maintained in [`/docs`](docs/):
+
+- **Architecture (`docs/architecture/`)**:
+  - [System Architecture](docs/architecture/system-architecture.md)
+  - [Service Worker Lifecycle](docs/architecture/service-worker-lifecycle.md)
+  - [Tab Grouping Engine](docs/architecture/tab-grouping-engine.md)
+- **API References (`docs/api/`)**:
+  - [Extension Internal Messaging API](docs/api/extension-messaging-api.md)
+  - [Local Sync Daemon API Spec](docs/api/backend-sync-spec.md)
+- **Component Specifications (`docs/components/`)**:
+  - [Background Service Worker](docs/components/background-service-worker.md)
+  - [Tab Grouper Engine](docs/components/tab-grouper.md)
+  - [Duplicate Detector](docs/components/duplicate-detector.md)
+  - [Predictive Engine](docs/components/predictive-engine.md)
+  - [Popup Interface (HUD)](docs/components/popup-ui.md)
+  - [Options Rule Manager](docs/components/options-rule-manager.md)
+- **Security (`docs/security/`)**:
+  - [Threat Modeling & Mitigation](docs/security/threat-model.md)
+  - [Permissions & CSP Policy](docs/security/permissions-and-csp.md)
+- **Strategic Roadmap**:
+  - [Complete Development Roadmap (MVP 1 & MVP 2)](docs/roadmap.md)
+
+---
+
+## Production Issue Specifications (`docs/issues/`)
+
+### Part I: MVP 1 — Hardened Deterministic Foundation
+- [Issue 001: Manifest Module Resolution & Missing Assets](docs/issues/001-fix-manifest-module-resolution-and-missing-assets.md)
+- [Issue 002: Service Worker Lifecycle & State Persistence](docs/issues/002-fix-service-worker-lifecycle-and-state-persistence.md)
+- [Issue 003: Dynamic Tab Re-evaluation on Rule Updates](docs/issues/003-fix-dynamic-tab-reevaluation-on-rule-updates.md)
+- [Issue 004: Race Condition in Duplicate Tab Removal](docs/issues/004-fix-race-condition-in-duplicate-detection-and-removal.md)
+- [Issue 005: Cross-Window Tab Group Consolidation](docs/issues/005-feat-cross-window-tab-group-consolidation.md)
+- [Issue 006: Rule Conflict Detection & Priority Ordering](docs/issues/006-feat-rule-conflict-detection-and-priority-resolution.md)
+- [Issue 007: Bounded Markov Predictive Tab Switching](docs/issues/007-feat-markov-chain-predictive-tab-switching.md)
+- [Issue 008: Local Sync Daemon Security & CORS Mitigation](docs/issues/008-sec-secure-local-sync-daemon-and-cors-mitigation.md)
+- [Issue 009: Batch Tab Operations & API Throttling](docs/issues/009-perf-batch-tab-query-and-tabgroups-api-throttling.md)
+- [Issue 010: Dark Mode & Accessible Tab Interface](docs/issues/010-ui-dark-mode-and-accessible-tab-management-interface.md)
+- [Issue 011: Advanced Subdomain Wildcards & Path Matching](docs/issues/011-feat-domain-hierarchy-and-subdomain-wildcard-matching.md)
+- [Issue 012: Automated Playwright E2E Test Suite](docs/issues/012-test-end-to-end-playwright-extension-test-suite.md)
+- [Issue 013: Tab Discarding & Memory Saver Integration](docs/issues/013-perf-chrome-tab-discarding-and-memory-saver-integration.md)
+- [Issue 014: Pinned & Audible Tab Exclusion Policies](docs/issues/014-feat-pinned-tab-and-audible-tab-exclusion-policies.md)
+- [Issue 015: Storage Quota Guard & Sync Chunking](docs/issues/015-perf-storage-quota-guard-and-sync-chunking.md)
+- [Issue 016: Keyboard-Driven Fuzzy Tab Switcher HUD](docs/issues/016-feat-keyboard-driven-fuzzy-tab-switcher-hud.md)
+- [Issue 017: Context Menus for Quick Rule Creation](docs/issues/017-ui-context-menu-actions-for-quick-rule-creation.md)
+- [Issue 018: Encrypted Backup Export & Import](docs/issues/018-sec-end-to-end-encrypted-backup-export-and-import.md)
+- [Issue 019: Tab Productivity Visualizer & Analytics](docs/issues/019-ui-tab-analytics-dashboard-and-productivity-visualizer.md)
+- [Issue 020: Automated Chrome Web Store Packaging Pipeline](docs/issues/020-chore-automated-chrome-web-store-packaging-and-release-pipeline.md)
+
+### Part II: MVP 2 — Cognitive AI Workspace Layer
+- [Issue 021: On-Device Tab Classification via Chrome Built-in AI (Prompt API / Gemini Nano)](docs/issues/021-feat-chrome-built-in-ai-prompt-api-integration.md)
+- [Issue 022: WebGPU Local Embeddings & Semantic Unsupervised Tab Clustering](docs/issues/022-feat-local-embeddings-and-semantic-tab-clustering.md)
+- [Issue 023: Generative Group Labeling & Contextual Title Auto-Generation](docs/issues/023-feat-smart-auto-naming-of-unlabeled-tab-groups.md)
+- [Issue 024: Real-Time User Intent Recognition and Predictive Tab Flow Engine](docs/issues/024-feat-user-intent-and-workflow-state-recognition.md)
+- [Issue 025: Interactive Tab Knowledge Graph & Spatial Relationship Mapping](docs/issues/025-feat-semantic-tab-graph-and-spatial-workspace-mapping.md)
+- [Issue 026: Generative Tab Group Digest and Multi-Tab Research Synthesizer](docs/issues/026-feat-ai-smart-tab-summarizer-and-digest-generator.md)
+- [Issue 027: Context-Aware Workspace Auto-Switching & Time-of-Day Profiles](docs/issues/027-feat-context-aware-workspace-auto-switching.md)
+- [Issue 028: Semantic Duplicate Detection (Cross-URL Content Equivalence)](docs/issues/028-feat-duplicate-tab-semantic-equivalence-detection.md)
+- [Issue 029: Intelligent Tab Triage & "Inbox Zero" Workspace Archival Assistant](docs/issues/029-feat-smart-tab-triage-and-inbox-zero-auto-archive.md)
+- [Issue 030: Local On-Device Preference Refinement & Federated Learning Guard](docs/issues/030-feat-privacy-preserving-federated-model-fine-tuning.md)
+
+---
+
+## Governance & Contributing
+
+- [Contributing Guidelines](CONTRIBUTING.md)
+- [Security Policy](SECURITY.md)
+- [Apache 2.0 License](LICENSE)

@@ -1,0 +1,58 @@
+# Operating System & IDE
+.DS_Store
+Thumbs.db
+*.swp
+*.swo
+*~
+.idea/
+.vscode/
+*.sublime-project
+*.sublime-workspace
+
+# Node & Package Managers
+node_modules/
+package-lock.json
+pnpm-lock.yaml
+yarn.lock
+npm-debug.log*
+
+# Python Backend & Virtual Environments
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+venv/
+.venv/
+ENV/
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+rules_backup.json
+
+# Chrome Extension Build Artifacts
+*.crx
+*.pem
+*.zip
+dist-extension/
+
+# Logs & Environment
+logs/
+*.log
+.env
+.env.local
+.env.*.local
+git_log.json
