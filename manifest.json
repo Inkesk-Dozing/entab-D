@@ -2,14 +2,15 @@
   "manifest_version": 3,
   "name": "entab-D - Groups & Duplicates",
   "version": "1.0.0",
-  "description": "Organize tabs into Study/Education/Research groups, detect and close duplicates. Fast, private, and secure.",
+  "description": "Intelligent, lightweight Chrome extension to automatically sort, group, deduplicate, and organize browser tabs.",
   "action": {
     "default_title": "entab-D",
-    "default_popup": "popup.html"
+    "default_popup": "src/popup/popup.html"
   },
-  "options_page": "options.html",
+  "options_page": "src/options/options.html",
   "background": {
-    "service_worker": "service_worker.js"
+    "service_worker": "src/background/service_worker.js",
+    "type": "module"
   },
   "permissions": [
     "tabs",

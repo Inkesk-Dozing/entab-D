@@ -1,0 +1,40 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="100%" height="100%">
+  <defs>
+    <linearGradient id="bgGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#0b0f19" />
+      <stop offset="100%" stop-color="#1e1b4b" />
+    </linearGradient>
+    <linearGradient id="tabPillGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#6366f1" />
+      <stop offset="100%" stop-color="#06b6d4" />
+    </linearGradient>
+    <filter id="ambientShadow" x="-20%" y="-20%" width="140%" height="140%">
+      <feDropShadow dx="0" dy="16" stdDeviation="24" flood-color="#000000" flood-opacity="0.55" />
+    </filter>
+  </defs>
+
+  <!-- Base Squircle Container -->
+  <rect x="40" y="40" width="432" height="432" rx="112" fill="url(#bgGrad)" filter="url(#ambientShadow)" stroke="rgba(255,255,255,0.15)" stroke-width="3" />
+  
+  <!-- Subtle Ambient Glow -->
+  <circle cx="256" cy="180" r="160" fill="#4f46e5" opacity="0.25" filter="blur(40px)" />
+
+  <!-- Bottom Translucent Tab Card -->
+  <rect x="140" y="260" width="232" height="120" rx="24" fill="#1e293b" fill-opacity="0.8" stroke="rgba(255,255,255,0.08)" stroke-width="2" />
+  <line x1="170" y1="340" x2="260" y2="340" stroke="#64748b" stroke-width="4" stroke-linecap="round" />
+
+  <!-- Middle Tab Card -->
+  <rect x="140" y="195" width="232" height="110" rx="24" fill="#0f172a" fill-opacity="0.9" stroke="rgba(56,189,248,0.25)" stroke-width="2" />
+  <line x1="170" y1="250" x2="290" y2="250" stroke="#94a3b8" stroke-width="4" stroke-linecap="round" />
+
+  <!-- Top Active Tab Group Pill -->
+  <rect x="140" y="130" width="232" height="80" rx="22" fill="url(#tabPillGrad)" stroke="rgba(255,255,255,0.4)" stroke-width="2" />
+
+  <!-- Active Category Indicators -->
+  <circle cx="175" cy="170" r="10" fill="#ffffff" />
+  <circle cx="205" cy="170" r="8" fill="#e0e7ff" fill-opacity="0.8" />
+  <circle cx="230" cy="170" r="6" fill="#c7d2fe" fill-opacity="0.6" />
+
+  <!-- Arrow Indicator -->
+  <path d="M 330 162 L 340 170 L 330 178" fill="none" stroke="#ffffff" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" />
+</svg>

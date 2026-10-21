@@ -91,4 +91,16 @@ document.addEventListener('DOMContentLoaded', async () => {
     closeDup.disabled = true;
     closeDup.textContent = 'Close Duplicates';
   });
+
+  const openOptions = $('#openOptions');
+  if (openOptions) {
+    openOptions.addEventListener('click', (e) => {
+      e.preventDefault();
+      if (chrome.runtime.openOptionsPage) {
+        chrome.runtime.openOptionsPage();
+      } else {
+        window.open(chrome.runtime.getURL('src/options/options.html'));
+      }
+    });
+  }
 });
