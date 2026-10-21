@@ -18,8 +18,8 @@ const Predictor = {
     },
 
     async recordTransition(fromUrl, toUrl) {
-        const data = await chrome.storage.local.get(['predictiveToggle']);
-        if (!data.predictiveToggle || !fromUrl || !toUrl || fromUrl === toUrl) return;
+        const data = await chrome.storage.local.get(['predictiveToggle', 'tabTransitions']);
+        if (data.predictiveToggle === false || !fromUrl || !toUrl || fromUrl === toUrl) return;
 
         // Normalize URLs (strip queries/hashes for better matching)
         const normalize = url => {
@@ -34,6 +34,8 @@ const Predictor = {
         const normFrom = normalize(fromUrl);
         const normTo = normalize(toUrl);
 
+        this.transitions = data.tabTransitions || this.transitions || {};
+
         if (!this.transitions[normFrom]) {
             this.transitions[normFrom] = {};
         }
@@ -45,8 +47,8 @@ const Predictor = {
     },
 
     async predictNextTabs(currentUrl, openTabs) {
-        const data = await chrome.storage.local.get(['predictiveToggle']);
-        if (!data.predictiveToggle) return [];
+        const data = await chrome.storage.local.get(['predictiveToggle', 'tabTransitions']);
+        if (data.predictiveToggle === false) return [];
 
         const normalize = url => {
             try {
@@ -58,7 +60,8 @@ const Predictor = {
         };
 
         const normCurrent = normalize(currentUrl);
-        const possibleTransitions = this.transitions[normCurrent] || {};
+        const transitions = data.tabTransitions || this.transitions || {};
+        const possibleTransitions = transitions[normCurrent] || {};
 
         // Sort by frequency
         const sortedTargets = Object.entries(possibleTransitions)
