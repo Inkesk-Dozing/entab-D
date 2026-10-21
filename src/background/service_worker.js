@@ -1,7 +1,7 @@
 /**
- * Background Service Worker for Tab Tamer
- * - Performs grouping and deduplication logic when triggered from the popup
- * - Stores user preferences in chrome.storage
+ * Background Service Worker for entab-D
+ * - Performs grouping and deduplication logic when triggered from popup or tab lifecycle events
+ * - Persists and rehydrates state across Manifest V3 service worker lifecycle
  */
 
 import Predictor from '../behavior/predictor.js';
@@ -15,6 +15,72 @@ const DEFAULT_RULES = [
   { name: "Research", color: "red", keywords: ["arxiv", "acm", "ieee", "springer", "nature", "science", "researchgate"] },
   { name: "AI", color: "yellow", keywords: ["Chatgpt", "Grok", "Deepseek", "Claude", "Copilot", "ollama", "huggingface", "gemini"] }
 ];
+
+// Session-resilient storage accessor for tab transitions
+const sessionStore = (typeof chrome !== 'undefined' && chrome.storage?.session)
+  ? chrome.storage.session
+  : (chrome.storage?.local || null);
+
+async function getLastActiveTabUrl() {
+  if (!sessionStore) return null;
+  try {
+    const data = await sessionStore.get('lastActiveTabUrl');
+    return data?.lastActiveTabUrl || null;
+  } catch {
+    return null;
+  }
+}
+
+async function setLastActiveTabUrl(url) {
+  if (!sessionStore) return;
+  try {
+    if (url) {
+      await sessionStore.set({ lastActiveTabUrl: url });
+    } else {
+      await sessionStore.remove('lastActiveTabUrl');
+    }
+  } catch { }
+}
+
+async function recordActiveTransition(toUrl) {
+  if (!toUrl || toUrl.startsWith('chrome://') || toUrl.startsWith('edge://') || toUrl.startsWith('about:')) return;
+  const prevUrl = await getLastActiveTabUrl();
+  if (prevUrl && prevUrl !== toUrl) {
+    await Predictor.recordTransition(prevUrl, toUrl);
+  }
+  await setLastActiveTabUrl(toUrl);
+}
+
+// Asynchronous state hydration: always read directly from storage to survive SW termination
+async function isAutoGroupEnabled() {
+  try {
+    const { autoGroupEnabled } = await chrome.storage.sync.get({ autoGroupEnabled: false });
+    return Boolean(autoGroupEnabled);
+  } catch (err) {
+    console.warn("Failed to query autoGroupEnabled:", err);
+    return false;
+  }
+}
+
+// Debounced batch grouping scheduler to prevent race conditions during rapid tab creation
+let autoGroupTimer = null;
+
+function scheduleAutoGroup(delayMs = 250) {
+  if (autoGroupTimer) {
+    clearTimeout(autoGroupTimer);
+  }
+  autoGroupTimer = setTimeout(async () => {
+    autoGroupTimer = null;
+    try {
+      const enabled = await isAutoGroupEnabled();
+      if (enabled) {
+        await groupTabsByRules({ collapse: false });
+      }
+    } catch (e) {
+      console.warn("Auto-group scheduled task failed:", e);
+    }
+  }, delayMs);
+}
 
 // Normalize URL for duplicate detection
 function normalizeUrl(u) {
@@ -52,8 +118,12 @@ async function groupTabsByRules({ collapse = false } = {}) {
     // Create/track groups per window
     const groupsByName = {};
     // Find existing groups to reuse
-    const existingGroups = await chrome.tabGroups.query({ windowId });
-    existingGroups.forEach(g => { groupsByName[g.title] = g; });
+    try {
+      const existingGroups = await chrome.tabGroups.query({ windowId });
+      existingGroups.forEach(g => { groupsByName[g.title] = g; });
+    } catch (e) {
+      console.warn("Failed to query tab groups:", e);
+    }
 
     for (const t of wtabs) {
       if (!t.url) continue;
@@ -68,22 +138,36 @@ async function groupTabsByRules({ collapse = false } = {}) {
         let groupId;
         if (groupsByName[matchedRule.name]) {
           groupId = groupsByName[matchedRule.name].id;
+          if (t.groupId === groupId) {
+            continue; // Already in target group
+          }
         } else {
-          groupId = await chrome.tabs.group({ tabIds: [t.id], createProperties: { windowId } });
-          await chrome.tabGroups.update(groupId, { title: matchedRule.name, color: matchedRule.color || "blue" });
-          // refresh cache
-          groupsByName[matchedRule.name] = { id: groupId, title: matchedRule.name };
-          continue; // already grouped this tab
+          try {
+            groupId = await chrome.tabs.group({ tabIds: [t.id], createProperties: { windowId } });
+            await chrome.tabGroups.update(groupId, { title: matchedRule.name, color: matchedRule.color || "blue" });
+            // refresh cache
+            groupsByName[matchedRule.name] = { id: groupId, title: matchedRule.name };
+            continue; // already grouped this tab
+          } catch (err) {
+            console.warn("Failed to create group for tab:", t.id, err);
+            continue;
+          }
         }
-        await chrome.tabs.group({ tabIds: [t.id], groupId });
+        try {
+          await chrome.tabs.group({ tabIds: [t.id], groupId });
+        } catch (err) {
+          console.warn("Failed to group tab:", t.id, err);
+        }
       }
     }
 
     if (collapse) {
-      const groups = await chrome.tabGroups.query({ windowId });
-      for (const g of groups) {
-        try { await chrome.tabGroups.update(g.id, { collapsed: true }); } catch { }
-      }
+      try {
+        const groups = await chrome.tabGroups.query({ windowId });
+        for (const g of groups) {
+          try { await chrome.tabGroups.update(g.id, { collapsed: true }); } catch { }
+        }
+      } catch (e) { }
     }
   }
 }
@@ -139,31 +223,42 @@ async function closeDuplicates({ keep = "oldest" } = {}) {
   return { closed: toClose.size };
 }
 
-// Auto grouping state
-let autoGroupEnabled = false;
+// Single consolidated listener for tab updates
+chrome.tabs.onUpdated.addListener(async (tabId, changeInfo, tab) => {
+  // Navigation finalized - evaluate debounced auto-grouping
+  if (changeInfo.status === 'complete' && tab.url && !tab.url.startsWith('chrome://')) {
+    if (await isAutoGroupEnabled()) {
+      scheduleAutoGroup();
+    }
+  }
 
-// Load auto grouping state on startup
-chrome.storage.sync.get({ autoGroupEnabled: false }, (result) => {
-  autoGroupEnabled = result.autoGroupEnabled;
-});
-
-// Listen for tab creation to auto group if enabled
-chrome.tabs.onCreated.addListener(async (tab) => {
-  if (autoGroupEnabled && tab.url) {
-    // Small delay to allow tab to load
-    setTimeout(async () => {
-      await groupTabsByRules({ collapse: false });
-    }, 1000);
+  // Track active tab URL transitions for prediction
+  if (tab.active && (changeInfo.url || (changeInfo.status === 'complete' && tab.url))) {
+    const currentUrl = changeInfo.url || tab.url;
+    if (currentUrl && !currentUrl.startsWith('chrome://')) {
+      await recordActiveTransition(currentUrl);
+    }
   }
 });
 
-// Listen for tab updates (e.g., URL change)
-chrome.tabs.onUpdated.addListener(async (tabId, changeInfo, tab) => {
-  if (autoGroupEnabled && changeInfo.url) {
-    // Small delay to allow tab to load
-    setTimeout(async () => {
-      await groupTabsByRules({ collapse: false });
-    }, 1000);
+// Listen for tab creation to auto group when already complete
+chrome.tabs.onCreated.addListener(async (tab) => {
+  if (tab.status === 'complete' && tab.url && !tab.url.startsWith('chrome://')) {
+    if (await isAutoGroupEnabled()) {
+      scheduleAutoGroup();
+    }
+  }
+});
+
+// Track Tab Switches for Prediction
+chrome.tabs.onActivated.addListener(async (activeInfo) => {
+  try {
+    const tab = await chrome.tabs.get(activeInfo.tabId);
+    if (tab && tab.url && !tab.url.startsWith('chrome://')) {
+      await recordActiveTransition(tab.url);
+    }
+  } catch (e) {
+    // Tab might have been closed immediately
   }
 });
 
@@ -191,9 +286,15 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
       await chrome.storage.sync.set({ rules: msg.rules });
       sendResponse({ ok: true });
     } else if (msg?.type === "SET_AUTO_GROUP") {
-      autoGroupEnabled = msg.enabled;
-      await chrome.storage.sync.set({ autoGroupEnabled });
+      const enabled = Boolean(msg.enabled);
+      await chrome.storage.sync.set({ autoGroupEnabled: enabled });
+      if (enabled) {
+        scheduleAutoGroup(50);
+      }
       sendResponse({ ok: true });
+    } else if (msg?.type === "GET_AUTO_GROUP") {
+      const enabled = await isAutoGroupEnabled();
+      sendResponse({ ok: true, autoGroupEnabled: enabled });
     } else if (msg?.type === "GET_PREDICTIONS") {
       const tabs = await chrome.tabs.query({});
       const currentTab = tabs.find(t => t.active);
@@ -211,28 +312,14 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
   return true;
 });
 
-chrome.runtime.onInstalled.addListener(() => {
+chrome.runtime.onInstalled.addListener(async () => {
   // Initialize defaults on fresh install
-  chrome.storage.sync.get({ rules: null }, ({ rules }) => {
-    if (!rules) chrome.storage.sync.set({ rules: DEFAULT_RULES });
-  });
-});
-// Track Tab Switches for Prediction
-let lastActiveTabUrl = null;
-chrome.tabs.onActivated.addListener(async (activeInfo) => {
-  const tab = await chrome.tabs.get(activeInfo.tabId);
-  if (tab.url && lastActiveTabUrl && tab.url !== lastActiveTabUrl) {
-    await Predictor.recordTransition(lastActiveTabUrl, tab.url);
+  const { rules } = await chrome.storage.sync.get({ rules: null });
+  if (!rules) {
+    await chrome.storage.sync.set({ rules: DEFAULT_RULES });
   }
-  lastActiveTabUrl = tab.url;
-});
-
-chrome.tabs.onUpdated.addListener(async (tabId, changeInfo, tab) => {
-  if (tab.active && changeInfo.url) {
-    if (lastActiveTabUrl && changeInfo.url !== lastActiveTabUrl) {
-      await Predictor.recordTransition(lastActiveTabUrl, changeInfo.url);
-    }
-    lastActiveTabUrl = changeInfo.url;
+  const { autoGroupEnabled } = await chrome.storage.sync.get({ autoGroupEnabled: null });
+  if (autoGroupEnabled === null) {
+    await chrome.storage.sync.set({ autoGroupEnabled: false });
   }
 });
-
